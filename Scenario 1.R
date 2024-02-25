@@ -13,10 +13,11 @@ library(dplyr)
 
 ## Read the polygon files
 city_border<- st_read("Data/Newcastle borders.shp") 
-ugs <- st_read("Data/Green_space.shp") # MasterMap topographic polygon
+ugs <- st_read("Data/Green_space dissolved.shp") 
+# MasterMap topographic polygon dissolved by attributeto avoid overlapp 
 
 ## Build 1x1km grid with city extension NB: entire city territory has been considered (urban+agricultural)
-# Get the bounding box of the shapefile
+# Get the bounding box of the shp
 bbox <- st_bbox (city_border)
 #grid of 1x1 km
 grid <- st_sf(geometry = st_make_grid (bbox, cellsize = c(1000, 1000),n =, what = "polygons"))
@@ -51,7 +52,7 @@ ggplot() +
 ugs_grid <- st_intersection(ugs, grid_clip)
 
 # Calculate clip_grid area (= area cell) and ugs area
-grid_clip$area_cels <- as.vector (st_area(grid_city))
+grid_clip$area_cels <- as.vector (st_area(grid_clip))
 ugs_grid$ugs_area <-as.vector(st_area(ugs_grid))
 
 #plot
@@ -60,8 +61,9 @@ ggplot() +
   geom_sf(data = grid_city, color = "blue", fill = NA) +
   theme_minimal()
 
-#extract attribute table and save in csv
-write.csv(st_drop_geometry(ugs_grid),file.path= "Data/ugs_data.csv",row.names=F) 
+#save ugs in the study area as shp and extract attribute table and save in csv
+st_write (ugs_grid, "Data/ugs_data.shp")
+write.csv(st_drop_geometry(ugs_grid),file= "Data/ugs_data.csv",row.names=F) 
 
 
 ##############
@@ -69,7 +71,8 @@ write.csv(st_drop_geometry(ugs_grid),file.path= "Data/ugs_data.csv",row.names=F)
 ##############
 
 # import data
-ugs_data <- read.csv("Data/ugs_data.csv", sep=",")
+ugs_data <- ugs_grid
+#ugs_data <- read.csv("Data/ugs_data.csv", sep=",")
 
 #sum ugs area per cell
 unique(ugs_data$secForm)
@@ -82,14 +85,14 @@ area_ugs_cell <- tapply(ugs_data$ugs_area, ugs_data$id, FUN=sum)
 #area cell
 length(grid_city$area_cels)
 # Filter the data frame based on the "id" values
-grid_study <- grid_city[grid_city$id %in% unique(ugs_data$id), ]
+grid_study <- grid_clip[grid_clip$id %in% unique(ugs_data$id), ]
 
 # Calculate the percentage of coverage
 ugs_coverage <- (area_ugs_cell / grid_study$area_cels) * 100
 
 #add ugs coverage to grid 
 grid_study$ugs_coverage <- as.vector(ugs_coverage)
-
+max(grid_study$ugs)
 ##############
 ### model
 ##############
@@ -107,6 +110,8 @@ st_write(hive_scenario, "Output/Scenario 1", driver = "ESRI Shapefile")
 
 Scenario1_data <- st_drop_geometry(hive_scenario)
 write.csv(Scenario1_data,file= "Output/Scenario1_data.csv",row.names=F)
+
+
 
 getwd()
 
